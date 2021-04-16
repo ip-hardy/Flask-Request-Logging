@@ -11,76 +11,27 @@ from flask import g, request
 REQUEST_LOG_FORMAT = '[%(request_id)s] %(levelname)s in %(module)s: %(message)s'
 
 
-class FlaskRequestLogFilter(logging.Filter):
-
-    def filter(self, record):
+class RequestIDHandler(StreamHandler):
+    def emit(self, record):
         record.request_id = g.request_id
-        return True
+        StreamHandler.emit(self, record)
 
 
-# class FlaskRequestLogFormatter(logging.Formatter):
+def prepare_request_log(app):
+    @app.before_request
+    def request_log():
+        g.request_id = request.headers.get(app.config['REQUEST_LOGGING_HEADER_ID_NAME'], uuid4().hex)
 
-#     def __init__(self, *args, **kwargs):
-#         super(FlaskRequestLogFormatter, self).__init__(*args, **kwargs)
+    request_handler = RequestIDHandler()
+    request_handler.setLevel(DEBUG)
+    request_handler.setFormatter(Formatter(REQUEST_LOG_FORMAT))
 
-#     def format(self, record):
-#         return super(FlaskRequestLogFormatter, self).format(record)
-
-
-def create_logger(app):
-    Logger = getLoggerClass()
-    logger = getLogger(app.logger_name)
-
-    class DebugLogger(Logger):
-        def getEffectiveLevel(self):
-            if self.level == 0 and app.debug:
-                return DEBUG
-            return Logger.getEffectiveLevel(self)
-
-    class RequestHandler(StreamHandler):
-        def emit(self, record):
-            StreamHandler.emit(self, record)
-
-    debug_handler = DebugHandler()
-    debug_handler.setLevel(DEBUG)
-    debug_handler.setFormatter(Formatter(REQUEST_LOG_FORMAT))
-
-    # just in case that was not a new logger, get rid of all the handlers
-    # already attached to it.
-    del logger.handlers[:]
-    logger.__class__ = DebugLogger
-    logger.addHandler(debug_handler)
-
-    # Disable propagation by default
-    logger.propagate = False
-
-    return logger
-
-
-
-
-
-
-
-def update_factory():
-    old_factory = logging.getLogRecordFactory()
-
-    def record_factory(*args, **kwargs):
-        record = old_factory(*args, **kwargs)
-        record.request_id = 'rrrrrrrrrrrr'
-        return record
-
-    logging.setLogRecordFactory(record_factory)
+    del app.logger.handlers[:]
+    app.logger.addHandler(request_handler)
 
 
 def init_app(app):
-
-    @app.before_request
-    def request_log():
-        g.request_id = request.headers.get(app.config['LOGGING_HEADER_ID_NAME'], uuid4().hex)
+    if app.config.get('REQUEST_LOGGING_OPEN', False):
+        prepare_request_log(app)
     
-    update_factory()
-
-    ftr = FlaskRequestLogFilter()
-    app.logger.addFilter(ftr)
-    
+    app.config['REQUEST_LOGGING_FORMAT']

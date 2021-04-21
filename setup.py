@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='Flask-Request-Logging',
-    version='0.1',
+    version='0.2',
     author='liuzhiyong',
     author_email='ip_hardy@qq.com',
     url='https://github.com/ip-hardy/Flask-Request-Logging',
